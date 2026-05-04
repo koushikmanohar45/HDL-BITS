@@ -1,0 +1,71 @@
+/*
+This is the fourth component in a series of five exercises that builds a complex counter out of several smaller circuits. See the final exercise for the overall design.
+
+You may wish to do FSM: Enable shift register and FSM: Sequence recognizer first.
+
+We want to create a timer that:
+
+is started when a particular pattern (1101) is detected,
+shifts in 4 more bits to determine the duration to delay,
+waits for the counters to finish counting, and
+notifies the user and waits for the user to acknowledge the timer.
+In this problem, implement just the finite-state machine that controls the timer. The data path (counters and some comparators) are not included here.
+
+The serial data is available on the data input pin. When the pattern 1101 is received, the state machine must then assert output shift_ena for exactly 4 clock cycles.
+
+After that, the state machine asserts its counting output to indicate it is waiting for the counters, and waits until input done_counting is high.
+
+At that point, the state machine must assert done to notify the user the timer has timed out, and waits until input ack is 1 before being reset to look for the next occurrence of the start sequence (1101).
+
+The state machine should reset into a state where it begins searching for the input sequence 1101.
+
+Here is an example of the expected inputs and outputs. The 'x' states may be slightly confusing to read. They indicate that the FSM should not care about that particular input signal in that cycle. For example, once a 1101 pattern is detected, the FSM no longer looks at the data input until it resumes searching after everything else is done.
+*/
+
+
+module top_module (
+    input clk,
+    input reset,      // Synchronous reset
+    input data,
+    output shift_ena,
+    output counting,
+    input done_counting,
+    output done,
+    input ack );
+    
+    localparam S0=0,S1=1,S2=2,S3=3,S4=4,SHIFT=5,WAIT=6,DONE=7;
+    reg [2:0] state, next_state;
+    reg [1:0] count;
+    always @(posedge clk) begin
+        if (reset)
+            state<=S0;
+        else
+            state<=next_state;
+    end
+    always @(*) begin
+        case (state)
+            S0: next_state=data?S1:S0;
+            S1: next_state=data?S2:S0;
+            S2: next_state=data?S2:S3;
+            S3: next_state=data?S4:S0;
+            S4: next_state=SHIFT;
+            SHIFT:next_state=(count==2)?WAIT:SHIFT;
+            WAIT:next_state=done_counting?DONE:WAIT;
+            DONE:next_state=ack?S0:DONE;
+            default: next_state=S0;
+        endcase
+    end
+    always @(posedge clk) begin
+        if (reset)
+            count<=0;
+        else if (state==SHIFT)
+            count<=count+1;
+        else
+            count<=0;
+    end
+    assign shift_ena=(state==SHIFT||(state==S4 && next_state==SHIFT));
+    assign counting=(state==WAIT);
+    assign done=(state==DONE);
+
+
+endmodule
